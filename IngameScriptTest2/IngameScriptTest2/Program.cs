@@ -96,36 +96,29 @@ namespace IngameScript
             // Iron:10k
             //
             //This functino uses the custom data to get the amounts requested, only other requirement is placing [sale] in the inventory name in which you want
-            string default_amount = GridTerminalSystem.GetBlockWithName("Prepare_Cargo_Script").CustomData;
-            bool use_default = true;
             string name_of_target_inventory = "[sale]";
-            string ingot_prefix = "MyObjectBuilder_Ingot";
-            string ore_prefix = "MyObjectBuilder_Ore";
-            string ore_suffix = "Ore";
-            float multiplier = 1;
-            if (argument == "2")
+            float multiplier = -1;
+            for (int i = 0; i < 30; i++)
             {
-                multiplier = 2;
+                if (i.ToString() == argument) multiplier = i;
             }
-            else if (argument == "3")
+            if (multiplier == -1) 
             {
-                multiplier = 3;
+                Echo("argument needs to be a positive number.....and less than thirty ya bish");
             }
-            else if (argument == "4")
-            {
-                multiplier = 4;
-            }
-            List<IMyCargoContainer> inventories = new List<IMyCargoContainer>();
-            GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(inventories);
+
+                
 
             // step 1 get the target inventory
             List<IMyTerminalBlock> target_inventories = new List<IMyTerminalBlock>();
-
             GridTerminalSystem.SearchBlocksOfName(name_of_target_inventory, target_inventories);
             // validate the inventory, make sure there is no more than one
             if (target_inventories.Count > 1)
             {
-                Echo("only one inventory with name [sale] allowed");
+                foreach(IMyTerminalBlock target in target_inventories)
+                {
+                    Move_Cargo_To_Container(target, multiplier, name_of_target_inventory);
+                }
                 return;
             }
             else if (target_inventories.Count == 0)
@@ -135,11 +128,48 @@ namespace IngameScript
             }
             else
             {
-
+                Move_Cargo_To_Container(target_inventories[0], multiplier, name_of_target_inventory);
             }
+        }
+
+
+        private MyFixedPoint Get_Missing_Amount(string TypeId, string SubtypeId, List<MyInventoryItem> items_in_cargo, MyFixedPoint amount)
+        {
+            foreach (MyInventoryItem i in items_in_cargo)
+            {
+                if (i.Type.TypeId.ToString() == TypeId && i.Type.SubtypeId == SubtypeId && i.Amount >= amount)
+
+                {
+                    Echo("Item already in target inventory");
+                    return MyFixedPoint.Zero;
+                }
+                else if (i.Type.TypeId.ToString() == TypeId && i.Type.SubtypeId == SubtypeId && i.Amount < amount)
+                {
+
+                    return amount - i.Amount;
+                }
+            }
+            Echo("no item found in target inventory");
+            return amount;
+        }
+       private void WriteMissingOres_ingots(string targetLCD, List<IMyInventoryItem> items_in_cargo, string name)
+        {
+            List<IMyTerminalBlock> l = new List<IMyTerminalBlock>();
+            GridTerminalSystem.SearchBlocksOfName(targetLCD, l);
+            IMyTextPanel lcd = l[0] as IMyTextPanel;
+
+        }
+
+        private void Move_Cargo_To_Container(IMyTerminalBlock Target_Container, float multiplier, string name_of_target_inventory)
+        {
+            List<IMyCargoContainer> inventories = new List<IMyCargoContainer>();
+            GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(inventories);
+            string ingot_prefix = "MyObjectBuilder_Ingot";
+            string ore_prefix = "MyObjectBuilder_Ore";
+            string ore_suffix = "Ore";
+            
             // parse custom data
-            string target_inventory_custom_data = target_inventories[0].CustomData;
-            if (use_default) target_inventory_custom_data = default_amount;
+            string target_inventory_custom_data = GridTerminalSystem.GetBlockWithName("Prepare_Cargo_Script").CustomData; ;
             string[] cd_lines = target_inventory_custom_data.Split('\n');
             //iterate over new lines, search ingots
             foreach (string line in cd_lines)
@@ -149,7 +179,7 @@ namespace IngameScript
                 string ingot_name = line.Split(':')[0];
                 string ingot_amount = line.Split(':')[1];
                 bool isOre = false;
-                if (ingot_name.Substring(ingot_name.Length -3, 3 ) == ore_suffix)
+                if (ingot_name.Substring(ingot_name.Length - 3, 3) == ore_suffix)
                 {
                     isOre = true;
                 }
@@ -182,28 +212,28 @@ namespace IngameScript
                             if (item.Type.TypeId.ToString() == ingot_prefix && item.Type.SubtypeId == ingot_name)
                             {
                                 List<MyInventoryItem> items_in_target_cargo = new List<MyInventoryItem>();
-                                target_inventories[0].GetInventory().GetItems(items_in_target_cargo);
+                                Target_Container.GetInventory().GetItems(items_in_target_cargo);
                                 MyFixedPoint amount_to_transfer = Get_Missing_Amount(ingot_prefix, ingot_name, items_in_target_cargo, amount);
                                 Echo("attempted transfer for following item:");
                                 Echo(item.Type.SubtypeId);
                                 Echo(amount_to_transfer.ToString());
                                 //transfer item to target inventory
-                                inv.GetInventory().TransferItemTo(target_inventories[0].GetInventory(), item, amount_to_transfer);
+                                inv.GetInventory().TransferItemTo(Target_Container.GetInventory(), item, amount_to_transfer);
 
                             }
                         }
                         else
                         {
-                            if (item.Type.TypeId.ToString() == ore_prefix && item.Type.SubtypeId == ingot_name.Substring(0, ingot_name.Length-3))
+                            if (item.Type.TypeId.ToString() == ore_prefix && item.Type.SubtypeId == ingot_name.Substring(0, ingot_name.Length - 3))
                             {
                                 List<MyInventoryItem> items_in_target_cargo = new List<MyInventoryItem>();
-                                target_inventories[0].GetInventory().GetItems(items_in_target_cargo);
-                                MyFixedPoint amount_to_transfer = Get_Missing_Amount(ore_prefix, ingot_name.Substring(0,ingot_name.Length - 3), items_in_target_cargo, amount);
+                                Target_Container.GetInventory().GetItems(items_in_target_cargo);
+                                MyFixedPoint amount_to_transfer = Get_Missing_Amount(ore_prefix, ingot_name.Substring(0, ingot_name.Length - 3), items_in_target_cargo, amount);
                                 Echo("attempted transfer for following item:");
                                 Echo(item.Type.SubtypeId);
                                 Echo(amount_to_transfer.ToString());
                                 //transfer item to target inventory
-                                inv.GetInventory().TransferItemTo(target_inventories[0].GetInventory(), item, amount_to_transfer);
+                                inv.GetInventory().TransferItemTo(Target_Container.GetInventory(), item, amount_to_transfer);
 
                             }
                         }
@@ -211,34 +241,7 @@ namespace IngameScript
                     }
                 }
             }
-        }
-
-
-        private MyFixedPoint Get_Missing_Amount(string TypeId, string SubtypeId, List<MyInventoryItem> items_in_cargo, MyFixedPoint amount)
-        {
-            foreach (MyInventoryItem i in items_in_cargo)
-            {
-                if (i.Type.TypeId.ToString() == TypeId && i.Type.SubtypeId == SubtypeId && i.Amount >= amount)
-
-                {
-                    Echo("Item already in target inventory");
-                    return MyFixedPoint.Zero;
-                }
-                else if (i.Type.TypeId.ToString() == TypeId && i.Type.SubtypeId == SubtypeId && i.Amount < amount)
-                {
-
-                    return amount - i.Amount;
-                }
-            }
-            Echo("no item found in target inventory");
-            return amount;
-        }
-       private void WriteMissingOres_ingots(string targetLCD, List<IMyInventoryItem> items_in_cargo, string name)
-        {
-            List<IMyTerminalBlock> l = new List<IMyTerminalBlock>();
-            GridTerminalSystem.SearchBlocksOfName(targetLCD, l);
-            IMyTextPanel lcd = l[0] as IMyTextPanel;
-
-        }
+        
+    }
     }
 }
